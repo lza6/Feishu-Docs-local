@@ -2,6 +2,16 @@
 
 本文件记录对外可见的变化。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.1] - 2026-10-24
+
+修复打包可交付性：`files` 白名单收录 `ui/dist/` 与 `test/`。
+
+- v1.2.0 未设 `files` 字段，而 `ui/dist` 在 `.gitignore` 中，`npm pack` 会跟着排除它——
+  发布的包启动后 `GET /` 仍返回 503，用户必须自己执行 `npm install` 与 `npm run build` 才能用界面。
+- 顺带把包从 122.5KB / 33 文件精简到 110.6KB / 20 文件（不再打 `docs/gui` 截图与计划书）。
+
+验证（真实解包端到端）：`npm pack` → `tar -xzf` → `node server.mjs` → `GET /` 返回 200 且含 `#root`。
+
 ## [1.2.0] - 2026-10-24
 
 本地 Web 工作台（GUI）。导出引擎不变，新增一层可视化界面。

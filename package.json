@@ -1,11 +1,23 @@
 {
   "name": "feishu-doc-exporter",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "飞书文档一键导出为本地离线文档（HTML + Markdown + 本地化图片），零第三方依赖",
   "type": "module",
   "bin": {
     "feishu-export": "./feishu-export.mjs"
   },
+  "files": [
+    "feishu-export.mjs",
+    "server.mjs",
+    "lib/",
+    "ui/dist/",
+    "selftest.mjs",
+    "test/",
+    "probe-page.mjs",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=22"
   },
