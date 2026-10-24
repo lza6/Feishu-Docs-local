@@ -19,7 +19,7 @@
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { CDP } from './lib/cdp.mjs';
-import { ensureBrowser, exportOne, CancelledError } from './lib/driver.mjs';
+import { ensureBrowser, exportOne, CancelledError, ExportError } from './lib/driver.mjs';
 
 function fail(msg) {
   console.error(`参数错误：${msg}`);
@@ -123,6 +123,14 @@ function eventToLogLines(e) {
 }
 
 async function promptLogin() {
+  // 非 TTY（CI、管道、重定向 stdin）下 readline 会永久挂起，必须提前报错而不是卡住（P2-7）
+  if (!process.stdin.isTTY) {
+    throw new ExportError(
+      '--wait-login 需要交互终端，但当前 stdin 不是 TTY（可能运行在 CI 或管道中）。'
+      + '请在本机终端运行，或先用 --profile 指向一个已登录的浏览器用户目录。',
+      'NOT_TTY'
+    );
+  }
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   await rl.question('如页面提示登录，请在浏览器里登录并等文档正文显示出来，然后按回车继续…');
   rl.close();
@@ -163,7 +171,8 @@ async function main() {
 main().catch(err => {
   console.error(`\n导出失败：${err.message}`);
   if (err instanceof CancelledError) process.exit(130);
-  if (/登录|login|权限|403|401/.test(err.message)) {
+  // NOT_TTY 说明用户已经加了 --wait-login，再建议"加 --wait-login"只会误导
+  if (err.code !== 'NOT_TTY' && /登录|login|权限|403|401/.test(err.message)) {
     console.error('建议：加 --wait-login 参数，在打开的浏览器里登录后回车再抓取。');
   }
   process.exit(1);

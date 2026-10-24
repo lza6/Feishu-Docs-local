@@ -141,6 +141,65 @@ test('P0-1：同一悬空引用被多次遍历时不重复计数', () => {
   assert.equal(dup.danglingRefs.length, 2);
 });
 
+// ---------------- P2-2 / P2-12 Markdown 保真 ----------------
+
+test('P2-2：Markdown 表格的合并区必须用 ↔ 占位并附说明，不能变成空列', () => {
+  const bm = {
+    root: state('page', { children: ['tb'] }),
+    tb: state('table', {
+      rows_id: ['r1', 'r2'],
+      columns_id: ['c1', 'c2'],
+      cell_set: {
+        r1c1: { block_id: 'a', merge_info: { row_span: 1, col_span: 2 } },
+        r2c1: { block_id: 'b', merge_info: { row_span: 1, col_span: 1 } },
+        r2c2: { block_id: 'c', merge_info: { row_span: 1, col_span: 1 } }
+      }
+    }),
+    a: state('table_cell', { children: ['t1'] }),
+    b: state('table_cell', { children: ['t2'] }),
+    c: state('table_cell', { children: ['t3'] }),
+    t1: state('text', { text: txt('合并表头') }),
+    t2: state('text', { text: txt('A') }),
+    t3: state('text', { text: txt('B') })
+  };
+  const o = render({ block_map: bm, docId: 'root', assets: {}, meta: { title: 'T' } });
+  assert.match(o.md, /\| 合并表头 \| ↔ \|/, '被合并覆盖的格子须标 ↔ 而非留空');
+  assert.match(o.md, /\| A \| B \|/);
+  assert.match(o.md, /Markdown 不支持合并单元格/);
+  // 无合并的表格不应出现说明噪音
+  const plain = render({
+    block_map: {
+      root: state('page', { children: ['tb2'] }),
+      tb2: state('table', { rows_id: ['r1'], columns_id: ['c1'], cell_set: { r1c1: { block_id: 'x' } } }),
+      x: state('table_cell', { children: ['tx'] }),
+      tx: state('text', { text: txt('只有一列') })
+    },
+    docId: 'root', assets: {}, meta: {}
+  });
+  assert.doesNotMatch(plain.md, /Markdown 不支持合并单元格/);
+});
+
+test('P2-12：Markdown 还原斜体/下划线/高亮，与 HTML 能力对齐', () => {
+  const bm = {
+    root: state('page', { children: ['p'] }),
+    p: state('text', {
+      text: {
+        initialAttributedTexts: {
+          text: { 0: '斜体加粗下划线高亮' },
+          // 斜体(0-1) 加粗(2-3) 下划线(4-6) 高亮(7-8)
+          attribs: { 0: '*0*1+2*2*2+2*4*3+3*7*4+2' }
+        },
+        apool: { numToAttrib: { 1: ['italic', 'true'], 2: ['bold', 'true'], 3: ['underline', 'true'], 4: ['textHighlight', '#fff2a8'] } }
+      }
+    })
+  };
+  const o = render({ block_map: bm, docId: 'root', assets: {}, meta: {} });
+  assert.match(o.md, /\*斜体\*/);
+  assert.match(o.md, /\*\*加粗\*\*/);
+  assert.match(o.md, /<u>下划线<\/u>/);
+  assert.match(o.md, /<mark>高亮<\/mark>/);
+});
+
 test('常规文档不产生任何告警型记录（unsupported/degraded/renderErrors 全空）', () => {
   const bm = {
     root: state('page', { children: ['h1', 'p1'] }),
