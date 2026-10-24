@@ -5,3 +5,6 @@ node_modules/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# 本地私有留存（含内部信息的验证截图等），永不提交
+/.local/

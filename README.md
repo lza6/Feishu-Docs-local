@@ -56,6 +56,26 @@ node selftest.mjs        # 等价 npm run selftest
 
 ---
 
+## 目录结构
+
+```
+feishu-export.mjs   CLI 入口：解析参数、编排抓取与输出
+lib/cdp.mjs         极简 CDP 客户端（连接/复用浏览器、发命令、监听）
+lib/capture.mjs     走飞书数据接口分页取全量块、按 token 取资源
+lib/render.mjs      富文本 attribs 解码 + HTML/Markdown 渲染 + 资源落盘
+selftest.mjs        纯逻辑自检（node:test，不需要浏览器/网络）
+probe-page.mjs      调试工具：连上已在 9222 端口开着的浏览器，打印页面标题/正文摘要并截图
+```
+
+`probe-page.mjs` 用法（排查“取不到内容”时很有用）：
+
+```bash
+node feishu-export.mjs "链接" --keep-open      # 先让浏览器停在 9222 端口
+node probe-page.mjs "https://your-tenant.feishu.cn/docx/xxx" shot.png
+```
+
+---
+
 ## 原理（为什么不用爬 DOM）
 
 飞书文档页是**虚拟滚动**渲染：滚动时只保留视口附近几十个块，直接抓 DOM 只能拿到一小段，且表格合并、代码块、行内样式都会丢。
@@ -86,7 +106,7 @@ node selftest.mjs        # 等价 npm run selftest
 
 ## 验证记录
 
-在 Ruijie 内部一份 10 万字文档上实测（983 个内容块 / 57 张图 + 5 个白板 + 2 个附件）：
+在某企业内部一份 10 万字文档上实测（983 个内容块 / 57 张图 + 5 个白板 + 2 个附件）：
 
 | 检查项 | 结果 |
 |---|---|

@@ -1,0 +1,9 @@
+# 让 git 按内容而非扩展名判断，避免跨平台换行/二进制差异污染 diff
+* text=auto
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
