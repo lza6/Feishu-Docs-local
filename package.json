@@ -1,17 +1,20 @@
 {
   "name": "feishu-doc-exporter",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "飞书文档一键导出为本地离线文档（HTML + Markdown + 本地化图片），零第三方依赖",
   "type": "module",
   "bin": {
     "feishu-export": "./feishu-export.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "export": "node feishu-export.mjs",
-    "selftest": "node selftest.mjs"
+    "start": "node server.mjs",
+    "selftest": "node selftest.mjs",
+    "test:server": "node --test test/server.test.mjs",
+    "test": "node --test && node selftest.mjs"
   },
   "keywords": ["feishu", "lark", "docx", "offline", "export", "markdown"],
   "license": "MIT"

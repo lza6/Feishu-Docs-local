@@ -2,6 +2,45 @@
 
 本文件记录对外可见的变化。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.0] - 2026-10-24
+
+**诚实性与健壮性**。核心变化：不再有任何"少导了内容却不告诉你"的路径。
+
+### Added
+
+- `manifest.json` 新增 `renderedBlocks`、`unsupportedTypes`、`degradedCount`、`renderErrors`、`danglingRefs`、`truncated`、`pagesFetched`、`warnings`；`assets` 增加 `skipped`。`blockCount`（输入总数）与 `renderedBlocks`（实际渲染数）并列，杜绝用单一块数暗示完整。
+- CLI 参数 `--max-asset-bytes <n>`：单资源体积上限（默认 128MB），超限跳过并告警。
+- CLI 完成前打印 `⚠` 告警：未支持块、渲染失败块、降级块、超大跳过资源、缺失资源、分页截断。
+- `lib/driver.mjs`：导出编排层，CLI 与本地服务共用，产出结构化进度事件。
+- `lib/jobs.mjs`、`server.mjs`：本地 Web 工作台服务（零依赖 HTTP + SSE，仅绑 `127.0.0.1`；前端 `ui/` 尚未实现，`GET /` 返回 503 与构建提示）。
+- `test/render.test.mjs`、`test/capture.test.mjs`、`test/server.test.mjs`：39 条回归用例，全部无需浏览器与网络。
+- 视频/音频块（`media`）纳入资源下载。
+
+### Changed
+
+- **未支持块不再静默丢弃**：正文输出 `［未支持块：type］` 占位（HTML + Markdown），并记录 token。
+- **悬空子块引用不再静默过滤**：`children` 指向不存在的块时记入 `danglingRefs` 并告警（原实现直接 `filter` 掉，正文与日志都无痕迹）。
+- **单块渲染异常不再炸掉整篇**：输出 `［渲染失败块：type / id］` 占位，其它块正常导出。
+- `todo` 块渲染为 `☐/☑`；`heading6`–`heading9` 渲染为 `<h6>`，不再降级成普通段落。
+- 资源分批回传只带本批新增项（原为全量重复回传，O(n²)）；单资源超限主动跳过。
+- 分页达到 200 页上限时标记 `truncated`，不再静默截断。
+- `--out`/`--port`/`--browser`/`--max-asset-bytes` 增加取值校验，错误以中文提示并退出码 `2`。
+- `safeName` 拒绝纯点号标题并回退 `untitled-<docId前8位>`，输出目录额外做越界校验。
+- 资源文件名处理 Windows 保留名（`CON`/`PRN`/`AUX`/`NUL`/`COM1-9`/`LPT1-9`）与超长名；ZIP 容器按字节嗅探补 `.zip`。
+- `--help` 增加完整选项说明段。
+
+### Fixed
+
+- **`engines.node` 改为 `>= 22`**：原 `>= 20` 与全局 `WebSocket` 的实际要求不符；Node 20 下会抛 `ReferenceError`。现在启动时先探测并给出可执行提示（含 `--experimental-websocket` 方案）。
+- **CDP `send` 的 180s 超时定时器泄漏**：原来只注册不清理，导出跑完后进程仍要等定时器到期才退出（表现为"日志已完成但终端不返回"）。现在 `unref` + settle/close 时 `clearTimeout`。
+- **`manifest.assets.missing` 恒为 `[]`**：探查调用传 `[]` 导致资源清单从未返回。现在 `null` = 探查（返回清单不下载）、`[]` = 不做事、数组 = 下载指定批次，清单始终返回。
+
+### Known limitations
+
+- 超过 128MB 的单个附件默认跳过（可由 `--max-asset-bytes` 放开，建议同时提高堆上限）。
+- `sheet` / `bitable` / `mindnote` / `diagram` 等块类型仍不导出内容，仅占位。
+- 本地 Web 工作台前端（`ui/`）尚未实现。
+
 ## [1.0.1] - 2026-10-24
 
 文档与工程化补充，无功能变更、无破坏性改动。

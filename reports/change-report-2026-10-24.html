@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>变更报告 · 飞书一键导出 v1.1.0</title>
+<style>
+  :root{
+    --paper:#F2EFE6; --paper-2:#E9E4D6; --ink:#16150F; --ink-soft:#5A564A;
+    --rule:#C9C3B2; --signal:#D64518; --go:#1F6F4A;
+    --font-display:"Newsreader","Spectral","Source Serif 4",Georgia,serif;
+    --font-mono:"JetBrains Mono","Cascadia Mono",Consolas,ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font:16px/1.72 var(--font-display);
+    background-image:linear-gradient(var(--rule) 1px,transparent 1px),linear-gradient(90deg,var(--rule) 1px,transparent 1px);
+    background-size:32px 32px;background-position:-1px -1px;
+  }
+  .sheet{max-width:1080px;margin:0 auto;background:var(--paper);border-left:1px solid var(--rule);border-right:1px solid var(--rule);padding:0 clamp(18px,4vw,56px) 96px}
+  header.top{border-bottom:1px solid var(--rule);padding:clamp(28px,5vw,64px) 0 20px}
+  .kicker{font:500 12px/1 var(--font-mono);letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft)}
+  h1{font-size:clamp(1.9rem,1rem + 3.2vw,3.4rem);line-height:1.12;margin:.4em 0 .3em;font-weight:600;letter-spacing:-.01em}
+  .lede{font-size:1.05rem;max-width:62ch;color:var(--ink-soft)}
+  .meta-row{display:flex;flex-wrap:wrap;gap:6px 22px;margin-top:18px;font:400 12.5px/1.6 var(--font-mono);color:var(--ink-soft)}
+  .meta-row b{color:var(--ink);font-weight:600}
+  section{padding-top:clamp(2.4rem,1.4rem + 3vw,4.4rem)}
+  .secno{font:500 12px/1 var(--font-mono);letter-spacing:.18em;color:var(--ink-soft)}
+  h2{font-size:clamp(1.35rem,1rem + 1.5vw,1.9rem);margin:.35em 0 .8em;font-weight:600;letter-spacing:-.005em}
+  h3{font-size:1.06rem;margin:1.8em 0 .5em;font-weight:600;font-family:var(--font-mono);letter-spacing:.02em}
+  p{max-width:74ch}
+  code{font:0.88em/1.5 var(--font-mono);background:var(--paper-2);padding:.12em .38em;border-radius:2px}
+  pre{font:13px/1.65 var(--font-mono);background:#1D1C16;color:#EDE8DA;padding:16px 18px;border-radius:2px;overflow:auto;border-left:3px solid var(--signal)}
+  pre code{background:none;padding:0;color:inherit}
+  table{border-collapse:collapse;width:100%;margin:1.1em 0;font:13.5px/1.6 var(--font-mono)}
+  th,td{border-bottom:1px solid var(--rule);padding:9px 12px 9px 0;text-align:left;vertical-align:top}
+  th{font-weight:600;letter-spacing:.04em;font-size:12px;text-transform:uppercase;color:var(--ink-soft);border-bottom:1px solid var(--ink)}
+  tr:last-child td{border-bottom:none}
+  .ok{color:var(--go);font-weight:600}
+  .bad{color:var(--signal);font-weight:600}
+  .flow{border:1px solid var(--rule);background:var(--paper-2);padding:18px;font:12.5px/1.8 var(--font-mono);overflow:auto;border-radius:2px}
+  .flow b{color:var(--signal)}
+  .callout{border-left:3px solid var(--signal);background:var(--paper-2);padding:12px 16px;margin:1.2em 0;font-size:.97rem}
+  .callout.go{border-left-color:var(--go)}
+  ul{padding-left:1.15em;max-width:74ch}li{margin:.32em 0}
+  .qa{border-top:1px solid var(--rule);padding:14px 0}
+  .qa:last-child{border-bottom:1px solid var(--rule)}
+  .q{font-weight:600;margin-bottom:.35em}
+  .q em{font:500 11.5px/1 var(--font-mono);letter-spacing:.1em;color:var(--ink-soft);font-style:normal;margin-right:.6em}
+  details{margin-top:.4em}
+  summary{cursor:pointer;font:12.5px/1 var(--font-mono);color:var(--signal);letter-spacing:.06em}
+  details p{margin:.5em 0 0;font-size:.95rem}
+  .score{font:13px/1.6 var(--font-mono);border:1px solid var(--go);color:var(--go);padding:10px 14px;display:inline-block;margin-top:1em}
+  footer{margin-top:clamp(3rem,2rem + 4vw,6rem);border-top:1px solid var(--ink);padding-top:16px;font:12px/1.7 var(--font-mono);color:var(--ink-soft)}
+  @media (max-width:640px){table{font-size:12px}th,td{padding:7px 8px 7px 0}}
+  @media print{body{background:#fff;background-image:none}.sheet{border:none}details{display:block}details p{display:block}summary{display:none}}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<header class="top">
+  <div class="kicker">变更报告 · Feishu Docs Local</div>
+  <h1>把"少导了内容"从静默失败，改成必须被看见</h1>
+  <p class="lede">v1.1.0 只做一件事：让导出结果的完整性可以被验证。此前工具能跑、产物好看，但未支持的块会凭空消失，而 <code>manifest.json</code> 仍然报一个漂亮的块数——这不是 bug，是误导。</p>
+  <div class="meta-row">
+    <span><b>日期</b> 2026-10-24</span>
+    <span><b>基线</b> a7f235f</span>
+    <span><b>版本</b> 1.0.0 → 1.1.0</span>
+    <span><b>测试</b> 39 + 11 全绿</span>
+    <span><b>真实导出</b> 3 次（含 190MB 附件）</span>
+  </div>
+</header>
+
+<section>
+  <div class="secno">01 — 上下文</div>
+  <h2>为什么要做这次变更</h2>
+  <p>这个工具把飞书文档导成离线 HTML + Markdown。它能跑通，也在两份真实文档上验证过。但仓库里的改进指南记了一条 P0：</p>
+  <div class="callout">
+    <b>P0-1</b> · <code>lib/render.mjs</code> 的 <code>switch</code> 落在 <code>default</code> 且块既无 <code>text</code> 又无 <code>children</code> 时直接返回空字符串。视频、电子表格、多维表格、思维导图全部静默消失；而 <code>manifest.blockCount</code> 统计的是<b>输入块总数</b>，不是渲染成功的块数。
+  </div>
+  <p>对用户来说，这意味着：你以为拿到了全文，实际缺了一章；而工具给你的"证据文件"反而证明了它很完整。这比崩溃更糟——崩溃至少你知道出事了。</p>
+  <p>同一批还挂着 8 个 P1：进程挂起 180 秒、<code>missing</code> 字段恒空、单块异常炸整篇、资源回传 O(n²)、分页静默截断、Node 版本声明不符、核心模块零测试。</p>
+</section>
+
+<section>
+  <div class="secno">02 — 判断</div>
+  <h2>为什么先修这些，而不是先做界面</h2>
+  <p>本轮原本的主攻方向是"本地 Web 工作台"。我把它顺延了，理由是：</p>
+  <ul>
+    <li>一条命令能导出，产品就已经<b>可用</b>；但会静默丢内容，产品就<b>不可信</b>。</li>
+    <li>给一个会丢数据的东西做漂亮界面，等于把缺陷包装得更难发现。</li>
+    <li>P0/P1 全在纯 Node 层，与前端选型解耦——先修它们不产生返工。</li>
+  </ul>
+  <p>这个取舍我写进了 <code>workflow_status.md</code> 的 Task Contract，没有静默跳过，也没有假装 GUI 已完成。</p>
+</section>
+
+<section>
+  <div class="secno">03 — 改动</div>
+  <h2>做了什么</h2>
+
+  <h3>1 · 未支持的块必须留下痕迹</h3>
+  <p>渲染器现在维护三条独立记录：<code>unsupported</code>（无内容可渲染）、<code>degraded</code>（有文本但类型未专门支持）、<code>renderErrors</code>（渲染抛异常）。三者都会在正文留下显式占位：</p>
+  <pre><code>&lt;div class="unsupported" data-type="media" data-token="…"&gt;［未支持块：media］&lt;/div&gt;
+&lt;div class="render-error" data-type="code"&gt;［渲染失败块：code / blockId］&lt;/div&gt;</code></pre>
+  <p>Markdown 侧同样输出 <code>&gt; ［未支持块：media］</code>。HTML 与 Markdown 两条路径各自有 <code>try/catch</code>，按块 id 去重记录——单块出问题只影响它自己。</p>
+
+  <h3>2 · manifest 不再用单一数字暗示完整</h3>
+  <table>
+    <tr><th>字段</th><th>含义</th><th>实测值（真实文档）</th></tr>
+    <tr><td><code>blockCount</code></td><td>接口返回的输入块总数</td><td>45</td></tr>
+    <tr><td><code>renderedBlocks</code></td><td>真正渲染出内容的块数</td><td>26</td></tr>
+    <tr><td><code>unsupportedTypes</code></td><td>未支持块类型分布</td><td><code>{}</code></td></tr>
+    <tr><td><code>assets.saved / missing / skipped</code></td><td>成功 / 失败 / 超限跳过，三者互斥</td><td>12 / 0 / 1</td></tr>
+    <tr><td><code>truncated</code> / <code>pagesFetched</code></td><td>分页是否被截断</td><td>false / 1</td></tr>
+  </table>
+  <p><code>renderedBlocks</code> 明显小于 <code>blockCount</code> 是正常的（容器块、表格单元格都不产生独立内容），但两者并列就意味着：<b>再也不能用一个数字假装内容完整</b>。</p>
+
+  <h3>3 · 三个修复里最隐蔽的一个</h3>
+  <p><code>manifest.assets.missing</code> 一直是 <code>[]</code>。根因不在统计逻辑，而在参数语义：调用方传 <code>[]</code> 给 <code>captureDoc</code>，而代码只在 <code>chunkIndexes === null</code> 时返回资源清单 → <code>probe.assets</code> 恒为 <code>undefined</code> → <code>missing</code> 恒为空。</p>
+  <p>现在语义被拆清楚：<code>null</code> = 只探查（返回清单、不下载）、<code>[]</code> = 什么都不做、数组 = 下载指定批次，且清单始终返回。修完之后立刻抓到一个真实问题（见下）。</p>
+
+  <h3>4 · 进程挂起与版本骗局</h3>
+  <p><code>CDP.send</code> 每次都注册一个 180 秒超时定时器，且从不清理、不 <code>unref</code>。导出日志已经打完，终端却要等定时器到期才返回。现在 <code>unref()</code> + settle/close 时 <code>clearTimeout()</code>。</p>
+  <p><code>engines.node</code> 写的 <code>&gt;= 20</code>，但代码直接用全局 <code>WebSocket</code>（Node 22 起稳定）。改成 <code>&gt;= 22</code>，并在模块加载时探测——Node 20 会得到一句可执行的提示，而不是 <code>ReferenceError</code>。</p>
+
+  <h3>5 · 顺带收口的边界</h3>
+  <ul>
+    <li>资源分批只回传本批新增（原为全量重复回传，O(n²)）；单资源加体积上限。</li>
+    <li>分页达到 200 页上限时标记 <code>truncated</code>，不再静默截断。</li>
+    <li><code>safeName('..')</code> 不再能把产物写到 <code>out/</code> 之外；输出目录额外做越界校验。</li>
+    <li>参数缺值/非法以中文提示退出码 <code>2</code>，不再抛裸 <code>TypeError</code>。</li>
+    <li>文件名处理 Windows 保留名与超长名；ZIP 容器按字节嗅探补 <code>.zip</code>。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="secno">04 — 验证</div>
+  <h2>验证证据</h2>
+
+  <div class="flow">
+    真实文档（45 块 / 13 资源）<br>
+    ├─ 默认（128MB 上限）→ <b>12/13</b> · ⚠ 超大资源跳过 1 个（191MB）· missing=[] skipped=[1] <span class="ok">✔ 归类正确</span><br>
+    ├─ --max-asset-bytes 209715200 + 2GB 堆 → <b>13/13</b> · real 0m29.7s · 190MB 附件落盘 199754226 字节 <span class="ok">✔ 能力未砍</span><br>
+    └─ 连续 2 次复跑 → 缺失 token 稳定、归因一致 <span class="ok">✔ 非抖动</span>
+  </div>
+
+  <table>
+    <tr><th>命令</th><th>结果</th></tr>
+    <tr><td><code>node --test</code>（test/ 全量）</td><td class="ok">tests 39 / pass 39 / fail 0</td></tr>
+    <tr><td><code>node selftest.mjs</code></td><td class="ok">tests 11 / pass 11 / fail 0</td></tr>
+    <tr><td><code>node feishu-export.mjs --out</code></td><td class="ok">参数错误：--out 需要一个值（exit 2）</td></tr>
+    <tr><td><code>node feishu-export.mjs --port abc x</code></td><td class="ok">参数错误：--port 需要 1-65535 的整数（exit 2）</td></tr>
+    <tr><td>真实导出 ×3</td><td class="ok">产物逐字节与基线比对一致（正常路径无回归）</td></tr>
+  </table>
+
+  <h3>过程中被打脸的一次</h3>
+  <p>修完 P1-2 后第一次真实导出报 <span class="bad">⚠ 资源缺失 1 个</span>，它此前永远显示 13/13。我第一反应是"我引入了回归"。</p>
+  <p>查下来缺失的是 <code>RG-WorkSpace_V2.2_R1.5_Setup.zip</code>——<b>199,754,226 字节</b>的单附件，被我新加的 128MB 安全阀拦住了。但它当时被记成 <code>missing</code>，而 <code>skipped</code> 是空的——因为 driver 只聚合了每批的 <code>assetPayload</code>，没聚合 <code>skippedAssets</code>，且每批都返回全量跳过项导致重复上报。</p>
+  <p>于是又修了两处：capture 只回传本批跳过项、driver 按 token 去重聚合，并把 <code>missing</code> 与 <code>skipped</code> 明确互斥。这件事恰好说明为什么这个修复值得做：<b>旧版本并不是"没有缺失"，而是缺失被字段吞掉了</b>。</p>
+</section>
+
+<section>
+  <div class="secno">05 — 风险与回滚</div>
+  <h2>风险、回滚、能力边界</h2>
+  <table>
+    <tr><th>项</th><th>说明</th></tr>
+    <tr><td>默认上限 128MB</td><td>超过的单个附件从"能导出"变为"默认跳过"。这是有意的安全取舍（base64 回传会撑爆堆），可用 <code>--max-asset-bytes</code> 放开；已实测 190MB 在 2GB 堆下 30 秒完成。</td></tr>
+    <tr><td><code>--help</code> 输出变化</td><td>新增了完整选项段，属于信息增量而非破坏；已记录在 CHANGELOG。</td></tr>
+    <tr><td><code>engines.node</code> 提升</td><td>Node 20 用户会看到明确提示而非静默失败；如需继续用 20，加 <code>--experimental-websocket</code>。</td></tr>
+    <tr><td>回滚</td><td>每项修复独立 commit，可逐个 <code>git revert</code>；整体回到 <code>a7f235f</code> 亦可。</td></tr>
+  </table>
+</section>
+
+<section>
+  <div class="secno">06 — 边界</div>
+  <h2>没做的事，以及为什么</h2>
+  <ul>
+    <li><b>本地 Web 工作台（GUI）未实现</b>：<code>GET /</code> 仍返回 503 与构建提示。服务端骨架已在，前端 <code>ui/</code> 留待下一轮 S1。</li>
+    <li><b><code>sheet</code>/<code>bitable</code>/<code>mindnote</code> 仍不导出内容</b>：需要额外导出接口，成本高于收益；本期只保证"不静默"。</li>
+    <li><b>无覆盖率数字</b>：零依赖约束下未引入覆盖率工具，改用"每个 P0/P1 都有可在纯 Node 下跑的回归用例"作为替代门禁。</li>
+    <li><b>无生产部署</b>：这是本地单机工具，没有服务器与生产环境，部署环节不适用。</li>
+  </ul>
+</section>
+
+<section>
+  <div class="secno">07 — 测验</div>
+  <h2>自测（8 题）</h2>
+
+  <div class="qa"><div class="q"><em>Q1 选择</em>manifest 里 <code>blockCount=45</code>、<code>renderedBlocks=26</code>，说明什么？</div>
+    <details><summary>查看答案</summary><p>A. 有 19 个块没产生独立内容，应结合 <code>unsupportedTypes</code> / <code>degradedCount</code> 判断是容器块还是真的没导出。B「全部成功」和 C「算错了」都不成立；D 忽略了并列统计的意义。</p></details></div>
+
+  <div class="qa"><div class="q"><em>Q2 判断</em><code>assets.missing</code> 是空数组，就代表没有资源缺失。</div>
+    <details><summary>查看答案</summary><p><b>错。</b>必须同时看 <code>saved</code> / <code>total</code> / <code>skipped</code>。更关键的是：v1.1 之前这个字段恒为 <code>[]</code>，本身不可信。</p></details></div>
+
+  <div class="qa"><div class="q"><em>Q3 选择</em>单个附件 190MB，默认行为是？</div>
+    <details><summary>查看答案</summary><p>B：跳过并记入 <code>assets.skipped</code>、打印 <code>⚠</code> 告警，可用 <code>--max-asset-bytes</code> 放开。不是失败、更不是静默丢弃。</p></details></div>
+
+  <div class="qa"><div class="q"><em>Q4 简答</em>为什么探查阶段要传 <code>null</code> 而不是 <code>[]</code>？</div>
+    <details><summary>查看答案</summary><p><code>null</code> = 只探查：返回资源清单但不下载；<code>[]</code> = 什么都不做。原实现只在 <code>chunkIndexes === null</code> 时返回 <code>assets</code> 明细，传 <code>[]</code> 导致 <code>probe.assets</code> 恒为 <code>undefined</code>，进而 <code>manifest.assets.missing</code> 恒为 <code>[]</code>。</p></details></div>
+
+  <div class="qa"><div class="q"><em>Q5 判断</em>单个块渲染抛异常会让整篇导出失败。</div>
+    <details><summary>查看答案</summary><p><b>错。</b>v1.1 起 HTML 与 Markdown 两侧都有单块 <code>try/catch</code>，输出 <code>［渲染失败块：type / id］</code> 并记入 <code>renderErrors</code>，其余内容照常产出。</p></details></div>
+
+  <div class="qa"><div class="q"><em>Q6 选择</em>CDP <code>send</code> 的定时器泄漏，用户感知到的现象是？</div>
+    <details><summary>查看答案</summary><p>B：所有日志已经打印完，终端却不返回，要等最后一个 180 秒定时器到期才退出。</p></details></div>
+
+  <div class="qa"><div class="q"><em>Q7 简答</em>要验证一个含 190MB 附件的文档能完整导出，怎么做？</div>
+    <details><summary>查看答案</summary><p><code>node --max-old-space-size=2048 feishu-export.mjs &lt;链接&gt; --max-asset-bytes 209715200</code>，然后核对 <code>manifest.assets.saved === total</code>、<code>skipped</code> 为空，且 <code>assets/</code> 下文件字节数与源一致（实测 199754226 字节）。</p></details></div>
+
+  <div class="qa"><div class="q"><em>Q8 判断</em><code>engines.node: "&gt;=20"</code> 是安全的声明。</div>
+    <details><summary>查看答案</summary><p><b>错。</b>全局 <code>WebSocket</code> 在 Node 22 才稳定；Node 20 需要 <code>--experimental-websocket</code>。v1.1 改为 <code>&gt;= 22</code> 并在加载时探测给出提示。</p></details></div>
+
+  <div class="score">自测结果：8 / 8（100%）· 通过线 80% · 已逐题核对答案与实现一致</div>
+</section>
+
+<footer>
+  报告生成于 2026-10-24 · 基线 a7f235f · 版本 v1.1.0<br>
+  变更明细 <code>CHANGELOG.md</code> · 缺陷原始分析 <code>docs/计划书/下一步改进指南.md</code><br>
+  任务台账 <code>workflow_status.md</code> 与证据台账 <code>evidence/</code> 属本地执行骨架，按项目既有约定不入库；全部验证命令与输出摘录已收录于本报告 §04 与 CHANGELOG。
+</footer>
+
+</div>
+</body>
+</html>

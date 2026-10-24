@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * 飞书文档一键导出（离线版）
- * 零第三方依赖：用 CDP 驱动本机 Chrome/Edge，调用飞书自身接口抓取全量块数据。
+ * 飞书文档一键导出（离线版）—— CLI 入口。
+ *
+ * 真正的编排逻辑在 lib/driver.mjs（与本地服务工作台共用同一份实现）；
+ * 本文件只负责三件事：解析命令行参数、把结构化进度事件翻译成人话、打印结果。
  *
  * 用法：
  *   node feishu-export.mjs <飞书链接> [更多链接...] [选项]
@@ -14,36 +16,49 @@
  *   --no-md            不生成 Markdown
  *   --keep-open        结束后不关闭浏览器
  */
-import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
-import { CDP, evaluate, waitForReady, sleep } from './lib/cdp.mjs';
-import { captureDoc } from './lib/capture.mjs';
-import { render, writeAssets } from './lib/render.mjs';
+import { CDP } from './lib/cdp.mjs';
+import { ensureBrowser, exportOne, CancelledError } from './lib/driver.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const CHROME_CANDIDATES = [
-  'C:/Program Files/Google/Chrome/Application/chrome.exe',
-  'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-  '/usr/bin/google-chrome',
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-];
-const EDGE_CANDIDATES = [
-  'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-  'C:/Program Files/Microsoft/Edge/Application/msedge.exe'
-];
+function fail(msg) {
+  console.error(`参数错误：${msg}`);
+  console.error('用 --help 查看用法。');
+  process.exit(2);
+}
 
 function parseArgs(argv) {
-  const opts = { urls: [], out: 'out', port: 9222, browser: null, profile: null, waitLogin: false, md: true, keepOpen: false };
+  const opts = { urls: [], out: 'out', port: 9222, browser: null, profile: null, waitLogin: false, md: true, keepOpen: false, maxAssetBytes: null };
+  // 统一取值校验：原来 `--out` 缺值会让 path 模块抛裸 TypeError，`--port abc` 会变成 NaN（P2-8）
+  const need = (i, flag) => {
+    const v = argv[i + 1];
+    if (v === undefined || v.startsWith('--')) fail(`${flag} 需要一个值`);
+    return v;
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--out') opts.out = argv[++i];
-    else if (a === '--port') opts.port = Number(argv[++i]);
-    else if (a === '--browser') opts.browser = argv[++i];
-    else if (a === '--profile') opts.profile = argv[++i];
+    if (a === '--out') { opts.out = need(i, '--out'); i++; }
+    else if (a === '--port') {
+      const raw = need(i, '--port');
+      i++;
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 1 || n > 65535) fail(`--port 需要 1-65535 的整数，收到 "${raw}"`);
+      opts.port = n;
+    }
+    else if (a === '--browser') {
+      const v = need(i, '--browser');
+      i++;
+      if (!['chrome', 'edge'].includes(v)) fail(`--browser 只能是 chrome 或 edge，收到 "${v}"`);
+      opts.browser = v;
+    }
+    else if (a === '--profile') { opts.profile = need(i, '--profile'); i++; }
+    else if (a === '--max-asset-bytes') {
+      const raw = need(i, '--max-asset-bytes');
+      i++;
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n <= 0) fail(`--max-asset-bytes 需要正整数（字节数），收到 "${raw}"`);
+      opts.maxAssetBytes = n;
+    }
     else if (a === '--wait-login') opts.waitLogin = true;
     else if (a === '--no-md') opts.md = false;
     else if (a === '--keep-open') opts.keepOpen = true;
@@ -62,6 +77,16 @@ function printHelp() {
   node feishu-export.mjs "https://xxx.feishu.cn/docx/AbCdEf123" --out ./out
   node feishu-export.mjs "https://xxx.feishu.cn/docx/AbCdEf123" --wait-login   # 需登录的文档
 
+选项：
+  --out <目录>           输出根目录（默认 ./out）
+  --port <端口>          CDP 调试端口（默认 9222，已开则复用）
+  --browser <name>       chrome | edge（默认自动探测）
+  --profile <目录>       浏览器用户目录（默认 ./.browser-profile，登录态可复用）
+  --wait-login           打开页面后等待回车再抓取（文档需要登录时用）
+  --no-md                不生成 Markdown
+  --keep-open            结束后不提示关闭浏览器
+  --max-asset-bytes <n>  单个资源体积上限（字节，默认 134217728 = 128MB）；超限跳过并在告警中列出
+
 输出：
   <out>/<文档标题>/<文档标题>.html   离线阅读（含侧边目录、图片本地化）
   <out>/<文档标题>/<文档标题>.md     Markdown
@@ -70,126 +95,37 @@ function printHelp() {
 `);
 }
 
-function findBrowser(name) {
-  const list = name === 'edge' ? EDGE_CANDIDATES : name === 'chrome' ? CHROME_CANDIDATES : [...CHROME_CANDIDATES, ...EDGE_CANDIDATES];
-  for (const p of list) if (fs.existsSync(p)) return p;
-  throw new Error('未找到 Chrome/Edge，请用 --browser 指定或安装浏览器');
+/**
+ * 把 driver 抛出的结构化事件翻译成 CLI 的人类可读日志行。
+ * 这些文本是 CLI 的对外契约，改动会破坏用户已有脚本/习惯，需谨慎。
+ */
+function eventToLogLines(e) {
+  switch (e.phase) {
+    case 'navigate':
+      return [`打开文档：${e.url}`];
+    case 'probe':
+      return [`内容块：${e.blockCount}，资源：${e.assetTotal}，标题：${e.title}`];
+    case 'assets':
+      return [`  资源批次 ${e.chunk + 1}/${e.totalChunks} 完成（累计 ${e.done}/${e.assetTotal}）`];
+    case 'render':
+      return [];
+    case 'warnings':
+      // 只在"少导了内容"时出现，普通文档不打印，保持既有输出兼容
+      return e.items.map(w => `  ⚠ ${w}`);
+    case 'done':
+      return [
+        `完成：${e.outDir}`,
+        `  HTML ${e.htmlKB} KB · 目录 ${e.tocEntries} 条 · 资源 ${e.savedAssets}/${e.assetTotal}`
+      ];
+    default:
+      return []; // waiting_login / blocks / render / write 在 CLI 下不单独打印
+  }
 }
 
-async function isPortOpen(port) {
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1200) });
-    return res.ok;
-  } catch { return false; }
-}
-
-async function ensureBrowser(opts) {
-  if (await isPortOpen(opts.port)) {
-    return { launched: false };
-  }
-  const exe = findBrowser(opts.browser);
-  const profile = opts.profile || path.join(__dirname, '.browser-profile');
-  fs.mkdirSync(profile, { recursive: true });
-  const args = [
-    `--remote-debugging-port=${opts.port}`,
-    `--user-data-dir=${profile}`,
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--disable-features=Translate',
-    '--window-size=1440,900',
-    'about:blank'
-  ];
-  const child = spawn(exe, args, { detached: true, stdio: 'ignore' });
-  child.unref();
-  for (let i = 0; i < 40; i++) {
-    await sleep(400);
-    if (await isPortOpen(opts.port)) return { launched: true, exe, profile };
-  }
-  throw new Error(`浏览器已启动但 CDP 端口 ${opts.port} 未就绪`);
-}
-
-const docIdOf = url => {
-  const m = /\/docx\/([A-Za-z0-9]+)/.exec(url) || /\/docs\/([A-Za-z0-9]+)/.exec(url) || /\/wiki\/([A-Za-z0-9]+)/.exec(url);
-  if (!m) throw new Error(`无法从链接中解析文档 ID：${url}`);
-  return m[1];
-};
-
-const safeName = s => String(s || 'untitled').replace(/[\\/:*?"<>|\n\r\t]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80);
-
-async function exportOne(cdp, sessionId, url, opts, log) {
-  const docId = docIdOf(url);
-  log(`打开文档：${url}`);
-  await cdp.send('Page.navigate', { url }, sessionId);
-  await waitForReady(cdp, sessionId);
-  await sleep(2500); // 等前端把登录态/文档上下文准备好
-
-  if (opts.waitLogin) {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    await rl.question('如页面提示登录，请在浏览器里登录并等文档正文显示出来，然后按回车继续…');
-    rl.close();
-  }
-
-  // 1) 先拿块清单（不下载资源），确认可读
-  const probe = await evaluate(cdp, sessionId, `(${captureDoc.toString()})(${JSON.stringify(docId)}, [], 8)`);
-  if (!probe.blockCount) throw new Error('未取到内容：可能需要登录（加 --wait-login）或文档无权限');
-  log(`内容块：${probe.blockCount}，资源：${probe.assetTotal}，标题：${probe.title}`);
-
-  // 2) 分批拉资源
-  const assetData = {};
-  for (let ci = 0; ci < probe.totalChunks; ci++) {
-    const chunk = await evaluate(cdp, sessionId, `(${captureDoc.toString()})(${JSON.stringify(docId)}, [${ci}], 8)`);
-    Object.assign(assetData, chunk.assetPayload || {});
-    log(`  资源批次 ${ci + 1}/${probe.totalChunks} 完成（累计 ${Object.keys(assetData).length}/${probe.assetTotal}）`);
-  }
-
-  // 3) 取回全量 block 数据（已缓存在页面内）
-  const blocks = await evaluate(cdp, sessionId, `window.__feishuExport.blocks`);
-
-  // 4) 落盘 + 渲染
-  const title = safeName(probe.title || docId);
-  const outDir = path.join(opts.out, title);
-  fs.mkdirSync(outDir, { recursive: true });
-
-  const assetMap = writeAssets(outDir, assetData);
-  const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false });
-  const { html, md, toc, stats } = render({
-    block_map: blocks.block_map,
-    docId,
-    assets: assetMap,
-    meta: { title: probe.title || docId, sourceUrl: url, exportedAt }
-  });
-
-  const htmlPath = path.join(outDir, `${title}.html`);
-  fs.writeFileSync(htmlPath, html);
-  let mdPath = null;
-  if (opts.md) {
-    mdPath = path.join(outDir, `${title}.md`);
-    fs.writeFileSync(mdPath, md);
-  }
-
-  const manifest = {
-    sourceUrl: url,
-    docId,
-    title: probe.title,
-    exportedAt,
-    isoTime: new Date().toISOString(),
-    browser: cdp.browserVersion,
-    blockCount: probe.blockCount,
-    rootChildren: probe.rootChildren,
-    tocEntries: toc.length,
-    assets: {
-      total: probe.assetTotal,
-      saved: Object.keys(assetMap).length,
-      missing: probe.assets ? probe.assets.filter(a => !assetMap[a.token]).map(a => a.token) : []
-    },
-    outputs: { html: path.basename(htmlPath), md: mdPath ? path.basename(mdPath) : null },
-    stats
-  };
-  fs.writeFileSync(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
-
-  log(`完成：${outDir}`);
-  log(`  HTML ${(fs.statSync(htmlPath).size / 1024).toFixed(0)} KB · 目录 ${toc.length} 条 · 资源 ${Object.keys(assetMap).length}/${probe.assetTotal}`);
-  return { outDir, htmlPath, mdPath, manifest };
+async function promptLogin() {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  await rl.question('如页面提示登录，请在浏览器里登录并等文档正文显示出来，然后按回车继续…');
+  rl.close();
 }
 
 async function main() {
@@ -208,7 +144,9 @@ async function main() {
     for (const url of opts.urls) {
       const { targetId, sessionId } = await cdp.newPage('about:blank');
       try {
-        results.push(await exportOne(cdp, sessionId, url, opts, log));
+        results.push(await exportOne(cdp, sessionId, url, { ...opts, promptLogin }, e => {
+          for (const line of eventToLogLines(e)) log(line);
+        }));
       } finally {
         await cdp.send('Target.closeTarget', { targetId }).catch(() => {});
       }
@@ -224,6 +162,7 @@ async function main() {
 
 main().catch(err => {
   console.error(`\n导出失败：${err.message}`);
+  if (err instanceof CancelledError) process.exit(130);
   if (/登录|login|权限|403|401/.test(err.message)) {
     console.error('建议：加 --wait-login 参数，在打开的浏览器里登录后回车再抓取。');
   }

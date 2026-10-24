@@ -10,7 +10,7 @@
 | 本期主攻 | 本地 Web 可视化工作台（GUI） |
 | 粒度 | 里程碑 + 验收口径 |
 | D1 裁决 | **B —— Vite + React + Tailwind + Radix**（2026-10-24 用户拍板；连锁影响与对策见 §11） |
-| 状态 | D1 已裁决 B；M0–M1 为本轮实施目标（验收结果见 §12 实施记录） |
+| 状态 | D1 已裁决 B；**M0–M1 已完成并通过真实验证**（证据见 §12）；M2 待启动 |
 
 ---
 
@@ -200,23 +200,42 @@ stats: { blocks, tocEntries }
    └ 回执渲染自 manifest.json
 ```
 
-### 2.3 进度事件契约（`driver.onEvent`）
+### 2.3 进度事件契约（已与实现对齐，M0 冻结）
 
-这是本期最重要的接口，M0 就要冻结，之后不许随意改形状。
+分两层，职责不同：
+
+**A. driver 层（`lib/driver.mjs` 的 `onEvent`）—— 只描述"导出这一件事"**
 
 ```js
-{ phase:'launch',   at:1699…, browser:'chrome', profile:'…', reused:false }
-{ phase:'cdp',      at, version:'Chrome/151.0.7922.172' }
-{ phase:'navigate', at, url }
-{ phase:'waiting_login', at }                        // 仅 waitLogin 时
-{ phase:'probe',    at, blockCount, assetTotal, title, totalChunks }
-{ phase:'assets',   at, chunk, totalChunks, done, assetTotal }
-{ phase:'blocks',   at, blocks }                     // 从页面取回全量 block
-{ phase:'render',   at, tocEntries }
-{ phase:'write',    at, outDir }
-{ phase:'done',     at, outDir, htmlPath, mdPath, manifest }
-{ phase:'error',    at, message, code }              // code: LOGIN_REQUIRED | NO_CONTENT | CDP_TIMEOUT | ASSET_PARTIAL | UNKNOWN
+{ phase:'navigate',      at, url }
+{ phase:'slow_page',     at }                        // 页面 45s 内未就绪：不中断，仅告知（由 probe 兜底报错）
+{ phase:'waiting_login', at, url }                   // 仅 opts.waitLogin 时；随后 await opts.promptLogin()
+{ phase:'probe',         at, blockCount, assetTotal, title, totalChunks }
+{ phase:'assets',        at, chunk, totalChunks, done, assetTotal }   // done = 已成功累计数
+{ phase:'blocks',        at, blocks }
+{ phase:'render',        at, tocEntries }
+{ phase:'write',         at, outDir, manifestPath }
+{ phase:'done',          at, outDir, htmlPath, mdPath, manifest,
+                             htmlKB, tocEntries, savedAssets, assetTotal }  // 后四项供 CLI 还原日志行
 ```
+
+**B. 队列层（`lib/jobs.mjs` + `server.mjs` 的 `driverRunner`）—— 描述"这个任务的编排"**
+
+```js
+{ phase:'queued' } { phase:'starting' }
+{ phase:'launch',    at, browser, profile, reused }   // reused=true 表示复用已在跑的调试端口
+{ phase:'cdp',       at, version }
+{ phase:'job_url',   at, url }                        // 多链接任务里"当前正在导第几个"
+{ phase:'waiting_login' } / { phase:'resuming' }
+{ phase:'error',     at, message, code }              // 由队列层 catch 统一生成，driver 用 throw 表达错误
+{ phase:'cancelled' }
+```
+
+`code` 取值：`NO_BROWSER` / `CDP_TIMEOUT` / `BAD_URL` / `BAD_OPTIONS` / `NO_CONTENT` / `CANCELLED` / `UNKNOWN`。
+
+**不变量**
+- 任务进入终态（done/error/cancelled）后，**任何 phase 事件都不得再改写其状态**（否则取消的任务会被后续事件"复活"，队列死锁）。
+- `waiting_login` 若在已终态时被调用，必须立即返回，不得挂起。
 
 CLI 侧用一个 formatter 把它还原成**与现在逐字一致**的中文日志行 → 这是 M0「CLI 行为零变化」的验收手段。
 
@@ -226,14 +245,14 @@ CLI 侧用一个 formatter 把它还原成**与现在逐字一致**的中文日�
 |---|---|---|
 | GET | `/` | 返回 `ui/dist/index.html`（未构建时返回 503 并提示 `npm run build`） |
 | GET | `/assets/*` | 只服务 `ui/dist/assets/` 下文件；禁目录列表 |
-| POST | `/api/jobs` | body `{ urls:string[], opts?:{md,out,browser,allowAnyHost} }` → `201 {id,status}` |
+| POST | `/api/jobs` | body `{ urls:string[], opts?:{md:boolean, waitLogin:boolean} }` → `201 {id,status}`。**`out`/`browser`/`port`/`profile` 由服务启动参数决定，不接受客户端覆盖**（否则等于让调用方指定任意写入路径） |
 | GET | `/api/jobs` | 全量任务列表（脱敏后的 opts） |
 | GET | `/api/jobs/:id` | 单任务详情 + 最近 200 条事件 |
 | POST | `/api/jobs/:id/cancel` | 置取消标志，driver 在 chunk 边界退出 → `202` |
 | POST | `/api/jobs/:id/resume-login` | 唤醒 `waiting_login` 态（替代 CLI 的回车） |
 | GET | `/api/events` | `text/event-stream`；事件名 `job:update`、`log`、`job:done` |
 | GET | `/preview/:title/*` | 服务 `out/<title>/` 下文件（含 assets），**URL 解码后必须 realpath 校验** |
-| GET | `/api/health` | `{ ok, port, cdp:boolean, browser }` |
+| GET | `/api/health` | `{ ok, port, cdp:boolean, browser:(string 或 null), ui:{built,builtAt,stale}, allowAnyHost }` |
 
 ### 2.5 任务状态机
 
@@ -558,9 +577,9 @@ graft build
 
 ## 10. 下一步
 
-1. 你过目本文档，就 **D1–D4** 与 §1.5 视觉方向给出裁决（有异议直接改，我按你的版本重写对应章节，而不是另开一份）。
-2. 裁决完成后我从 **M0** 开始，同步创建 `workflow_status.md` 记录验收表。
-3. 每个里程碑结束我给你「实际运行的命令 + 真实输出」再进入下一个，不预支结论。
+1. ~~过目并裁决~~ —— **D1 已定为 B**；D2–D4 按推荐执行（本地字体栈 / 串行单队列 / 登录改按钮化）。
+2. **M0、M1 已完成并通过真实验证**，逐项证据见 §12（含真实飞书导出 45 块 / 13 资源 / 产物逐字节一致）。
+3. 下一步：**M2 的 S1**（Vite 工程 + Tailwind token 映射 + Radix 原语 + `tokens-preview` 自查页）。S1 过验收后才动 S2 界面，避免在错误的基座上雕花。
 
 ---
 
@@ -597,6 +616,101 @@ graft build
 ### 11.4 工期影响
 
 M2 从 1 个里程碑变 2 个阶段，实际工期预计翻倍；M5 增加构建产物与 `npm ci` 校验。**M0/M1 不受影响**（纯 Node 层，与前端选型解耦——这正是先做 M0 抽离的价值）。
+
+---
+
+## 12. M0–M1 实施记录（全部为实跑证据）
+
+### 12.1 M0 验收
+
+| 验收项 | 实际命令 | 实际结果 | 标签 |
+|---|---|---|---|
+| 语法 | `node --check lib/driver.mjs` / `feishu-export.mjs` / `lib/jobs.mjs` / `server.mjs` / `test/server.test.mjs` | 全部 OK | 已验证 |
+| 自检 | `node selftest.mjs` | `tests 11 / pass 11 / fail 0` | 已验证 |
+| `--help` 契约 | `diff <(改动前) <(改动后)` | **逐字一致**，exit 0 | 已验证 |
+| 无参契约 | 同上 | **逐字一致**，exit 1 | 已验证 |
+| 真实导出产物 | 同链接重导 + `diff` + 字节比对 | HTML/Markdown 除导出时间外**完全一致**；manifest 10 字段逐字段一致；**assets 13/13 字节级一致** | 已验证 |
+| 依赖数 | `package.json.dependencies` | 不存在（零运行时依赖） | 已验证 |
+
+### 12.2 M1 验收
+
+| 验收项 | 实际命令 | 实际结果 | 标签 |
+|---|---|---|---|
+| HTTP 契约 | `node --test test/server.test.mjs` | `tests 22 / pass 22 / fail 0`（真 HTTP 非 mock；含 6 条独立审查回归用例） | 已验证 |
+| SSE 事件链 | 同测试内含 `probe → assets → done → job:done` 断言 | 通过 | 已验证 |
+| 真实链路（服务侧） | `node server.mjs --port 7812` + `curl` 创建任务并轮询 | `queued→starting→launch→cdp→job_url→navigate→probe→assets×2→blocks→render→write→done`；45 块 / 13 资源全命中；产物 HTML 10214B + MD + assets + manifest 落盘 | 已验证 |
+| 预览接口 | `curl /preview/<标题>/<标题>.html` | `status=200 size=10214`（与磁盘字节数吻合） | 已验证 |
+| 监听边界 | 契约测试断言 `server.address().address` | `127.0.0.1` | 已验证 |
+| 串行不变量 | 契约测试「第二个任务在第一个结束前不会进入 running」 | 通过 | 已验证 |
+
+### 12.3 实施中暴露并修复的 3 个真实缺陷（不是计划内条目，是实测撞出来的）
+
+| # | 现象 | 根因 | 修复 | 证据 |
+|---|---|---|---|---|
+| 1 | 真实链路报 `TypeError: Failed to fetch`（原 CLI 复跑同样失败） | `waitForReady + sleep(2500)` 是**时序赌博**：导航刚完成时页面内 `fetch` 会被中断。诊断确认页面本身正常（title/cookie/fetch 手动测均 200），是死等窗口撞上导航尾流 | 新增 `waitForDocReady()` 就绪轮询（readyState + https + 正文非空 + 稳定期），并在 `captureDoc` 内加指数退避重试（700/1400/2800ms）。重试器必须写在函数体内，因为 `captureDoc` 是 `toString()` 注入页面独立执行的 | 修复前：CLI 与 server 两条链路均失败；修复后：两条链路均成功，且产物与修复前**逐字节一致** |
+| 2 | 取消 `running` 任务不落终态，一直吊在 running | `cancel()` 只 `abort()`，依赖 runner 主动抛错；runner 不响应就永远 running | 取消时**立即**置 `cancelled` 终态，abort 只作为加速信号 | 契约测试「取消运行中的任务落到 cancelled」由 FAIL 转 PASS |
+| 3 | 测试收尾每例额外 ~3s，总耗时 6744ms | keep-alive 连接使 `server.close()` 等待超时 | 测试收尾加 `closeAllConnections()` | 总耗时 6744ms → 878ms |
+
+> 说明：缺陷 1 是**产品级 P1**（会让真实用户在页面加载慢时随机失败），不修则 M1 的"真实链路可用"验收无法成立。它不在原计划的 M4 清单里，我按"主动补位"规则在 M1 一并修了。
+
+### 12.4 本轮新增/改动文件
+
+| 文件 | 类型 | 说明 |
+|---|---|---|
+| `lib/driver.mjs` | 新增 | 编排层：`PROJECT_ROOT` / `findBrowser` / `isPortOpen` / `ensureBrowser` / `docIdOf` / `safeName` / `waitForDocReady` / `exportOne(onEvent)` / `CancelledError` / `ExportError` |
+| `lib/jobs.mjs` | 新增 | 队列 + 状态机（queued/running/waiting_login/done/error/cancelled）+ `resumeLogin` + `toPublic` 脱敏 |
+| `server.mjs` | 新增 | 零依赖 HTTP + SSE；仅绑 127.0.0.1；Host/Origin 校验；realpath 越界防护；256KB body 上限；URL 域名白名单；CSP/nosniff/no-referrer；`/api/health` 报告 `ui.{built,builtAt,stale}` |
+| `test/server.test.mjs` | 新增 | 16 条契约测试（真 HTTP） |
+| `feishu-export.mjs` | 重写 | 231 行 → 175 行薄壳：只做参数解析 + `eventToLogLines` + 打印；日志文本与改动前逐字一致 |
+| `lib/capture.mjs` | 小改 | `client_vars` 请求加指数退避重试（4 次） |
+| `package.json` | 小改 | 新增 `start` / `test` / `test:server` 脚本 |
+
+### 12.5 本轮明确未做（按计划留给后续里程碑）
+
+- `ui/` 前端工程与视觉层（M2，S1 基座 + S2 界面）
+- 导出回执（M3）
+- `render.mjs` 颜色白名单、`assets.failures[]`、资源下载 429 重试、负向用例固化（M4）
+- README 两段式改写、`files` 白名单、`graft build`（M5）
+
+### 12.6 遗留观察
+
+- 真实导出耗时分布：`navigate` 约 5s（含页面加载）、资源批次约 20s（13 个资源 base64 回传）。这是 M2 UI 上传进度点阵的必要性依据，不是缺陷。
+- 本次验证复用了 `.browser-profile` 中的有效登录态（`launched:false`），说明"登录态可复用"这条 README 承诺仍然成立。
+
+### 12.7 独立代码审查（第 1 轮）
+
+审查者：独立子代理（不继承我的结论、不看我写的过程）。结论是 **"不建议直接进 M2"**，共报 2 HIGH / 5 MEDIUM / 6 LOW。它的判断是对的：其中两条会在 M2 真实交互中必然触发。
+
+**已修复（本轮，全部带回归用例）**
+
+| # | 级别 | 问题 | 修复 | 回归用例 |
+|---|---|---|---|---|
+| 1 | **HIGH** | 取消后 driver 才走到 `waiting_login`，把已取消任务的状态改写成 `waiting_login` 并挂起 → `#current` 永不释放 → **整条队列永久死锁**。M2 决裁 D4 正好是"登录后点我继续"，触发面会扩大 | `jobs.mjs` 三处写状态处加终态守卫；`waitForResume` 在终态时立即 resolve 不挂起；`driver.mjs` 在 `waitLogin` 前补 `assertNotAborted` | 「取消后不再触发 waitForResume 复活任务，队列不死锁」 |
+| 2 | **HIGH** | `serveFile` 的 `createReadStream` 无 `error` 监听：`statSync` 与 `open` 之间是 TOCTOU 窗口，一次竞态即 `uncaughtException` **打崩整个服务进程** | 改用 `stream.pipeline`（任一端出错双向销毁）；catch 块加 `res.headersSent` 判断 | 预览正常/越界用例 + pipeline 结构保证 |
+| 3 | MEDIUM | 取消不打断 `waitForDocReady`，队列被白占最长 45s | 轮询每轮检查 `signal` | 由 #1 的用例覆盖该路径 |
+| 4 | MEDIUM | 取消时 SSE 重复推 2 次 `job:done`（`.finally` 再 emit 一次）→ UI 会重复刷新 | `server.mjs` 用 `_donePushed` 去重（`toPublic` 不暴露该字段） | 「取消时 SSE 只推一次 job:done」 |
+| 5 | MEDIUM | **实现与 §2.3/§2.4 契约不一致**：`launch` 缺 browser/profile/reused、`assets` 用 accumulated、`job_url`/`slow_page` 未登记、health 缺 browser、`opts.out/browser` 被静默丢弃 | 代码对齐；契约文档补齐并明确"error 由队列层生成"、"out/browser 由启动参数决定" | 「health 含 browser 字段」「assets 使用 done」 |
+| 6 | MEDIUM | 全局 `script-src 'self'` 屏蔽了导出 HTML 的内联脚本 → **经服务预览时目录滚动高亮与外链 target 全部失效**（双击本地文件打开正常） | `/preview/*` 单独放行内联脚本，其它路由不放行 | 「预览路由 CSP 放行内联脚本，其它不放行」 |
+| 7 | MEDIUM | `.pipe(res)` 在客户端中断时不销毁源流 → 文件句柄泄漏（M2 的 iframe 预览会高频触发） | 同 #2 改 `pipeline` | 结构保证 |
+| 8 | MEDIUM | 同步抛错的 runner 直接 `uncaughtException` + `#current` 永不释放 | `Promise.resolve().then(() => this.runner(...))` 包一层 | 「runner 同步抛错不会打崩进程，队列继续」 |
+| 10 | LOW | `readBody` 未处理 `'close'`，客户端中途断开会让 Promise 永不落地 | 加 settled 标记 + `close` 监听 | 结构保证 |
+
+**未修（已登记，进 M4 待办）**
+
+| # | 级别 | 问题 | 处理 |
+|---|---|---|---|
+| 9 | LOW | POST 不校验 `Content-Type`（CSRF 目前靠 Origin 单点兜底） | M4 追加 `application/json` 校验 |
+| 11 | LOW | 任务表与 SSE 负载无上界（单任务 N 事件 → 传输 O(N²)） | M2 动 UI 前定任务保留策略 |
+| 12 | LOW | 取消窗口落在 `render`/`write` 时产物已落盘但 `result` 被丢弃 | M4 明确为已知语义并写入 README |
+| 13 | LOW | `/api/health` 硬编码探测 9222 | 随 M4 统一到可配端口 |
+
+**审查者实测的安全结论**（证据来源：独立审查代理实跑攻击用例，非我本人复现）
+
+- URL 白名单对 `evil-feishu.cn`、`feishu.cn.evil.com`、`a.feishu.cn.evil.com`、`feishu.cn@evil.com`、全角字符、`\u0000` 注入、反斜杠变体 —— **全部拒绝**。
+- `resolveInside` 对 junction 指向 `C:\Windows`、三重 URL 编码、`..%5C` 反斜杠穿越、盘符绝对路径、UNC、NTFS ADS（`:: $DATA`）—— **越界全部落到 404**，realpath 二次校验有效。
+- `hostAllowed` 要求端口与实际监听端口**精确相等**，`Origin: null` 被拒 —— DNS rebinding 与跨站 fetch 均挡住。
+
+> 这一轮审查的价值：我自己的 16 条测试全绿、产物逐字节一致，但**仍然漏了 2 个 HIGH**。测试全绿不等于没有问题，这也是我在 M2 之前坚持走独立审查的原因。
 
 ---
 

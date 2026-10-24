@@ -13,7 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24]
+        # 22 起全局 WebSocket 稳定，lib/cdp.mjs 会在 Node 20 上主动报错，故不再覆盖 20
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
 
@@ -25,5 +26,12 @@ jobs:
       - name: 纯逻辑自检（不需要浏览器/网络）
         run: node selftest.mjs
 
+      - name: 缺陷回归用例（render / capture / 本地服务契约）
+        run: node --test
+
       - name: CLI 冒烟（--help 必须正常退出）
         run: node feishu-export.mjs --help
+
+      - name: CLI 参数校验（缺值必须以 2 退出）
+        run: |
+          node feishu-export.mjs --out && exit 1 || test $? -eq 2
