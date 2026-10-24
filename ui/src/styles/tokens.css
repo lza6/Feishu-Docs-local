@@ -1,0 +1,41 @@
+/*
+ * 设计 token 唯一来源 ——「图纸档案终端 / Archival Terminal」
+ * 暖纸基底 + 墨黑 + 单一氧化橙信号色 + 衬线标题 / 等宽数据。
+ * 组件里禁止直接写十六进制色值，一律引用这里的变量。
+ */
+:root {
+  --paper: #f2efe6;
+  --paper-2: #e9e4d6;
+  --ink: #16150f;
+  --ink-soft: #5a564a;
+  --rule: #c9c3b2;
+  --signal: #d64518;
+  --go: #1f6f4a;
+
+  --font-display: "Newsreader", "Spectral", "Source Serif 4", Georgia, serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+
+  /* 蓝图栅格 */
+  --grid-size: 32px;
+  --grid-alpha: 0.28;
+
+  /* 动效：只允许三处使用 */
+  --dur-in: 180ms;
+  --dur-step: 120ms;
+  --dur-reveal: 240ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 煤纸变体：跟随系统，不做手动开关 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14140f;
+    --paper-2: #1d1c16;
+    --ink: #ede8da;
+    --ink-soft: #a29d8d;
+    --rule: #3a382c;
+    --signal: #ff6a3d;
+    --go: #4fbf8b;
+    --grid-alpha: 0.18;
+  }
+}

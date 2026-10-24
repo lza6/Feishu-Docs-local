@@ -10,7 +10,7 @@
 | 本期主攻 | 本地 Web 可视化工作台（GUI） |
 | 粒度 | 里程碑 + 验收口径 |
 | D1 裁决 | **B —— Vite + React + Tailwind + Radix**（2026-10-24 用户拍板；连锁影响与对策见 §11） |
-| 状态 | D1 已裁决 B；**M0–M1 已完成并通过真实验证**（证据见 §12）；M2 待启动 |
+| 状态 | D1 已裁决 B；M0–M1 已完成（§12）；**M2 + M3 已完成并通过真实浏览器验证**（§13）；M4/M5 待做 |
 
 ---
 
@@ -711,6 +711,56 @@ M2 从 1 个里程碑变 2 个阶段，实际工期预计翻倍；M5 增加构�
 - `hostAllowed` 要求端口与实际监听端口**精确相等**，`Origin: null` 被拒 —— DNS rebinding 与跨站 fetch 均挡住。
 
 > 这一轮审查的价值：我自己的 16 条测试全绿、产物逐字节一致，但**仍然漏了 2 个 HIGH**。测试全绿不等于没有问题，这也是我在 M2 之前坚持走独立审查的原因。
+
+---
+
+## 13. M2 + M3 实施记录（真实浏览器验证）
+
+### 13.1 交付物
+
+```
+ui/
+├── index.html / vite.config.js / tailwind.config.js / postcss.config.js
+├── src/main.jsx
+├── src/App.jsx                    三段式布局（01 投入 / 02 队列 / 03 产物）
+├── src/features/Submit.jsx        链接输入 + 选项 + 校验
+├── src/features/JobList.jsx       状态点 + 四格阶段点阵 + 取消/继续
+├── src/features/Receipt.jsx       回执 + 预览 iframe
+├── src/features/receipt-model.js  纯函数（可 node:test 直测）
+├── src/hooks/useJobs.js           SSE 订阅 + 断线兜底刷新
+├── src/dev/TokensPreview.jsx      #tokens 自查页
+└── src/styles/tokens.css + app.css
+```
+
+构建产物 gzip：CSS `3.65KB` + JS `52.6KB` = **约 56KB**（预算 180KB）。
+
+### 13.2 真实浏览器验证（Playwright，实跑）
+
+| 检查项 | 结果 | 标签 |
+|---|---|---|
+| 空状态 | 三段区块 + 两处空文案，导出按钮 disabled | 已验证 |
+| 错误态 | 非法域名提交 → 服务端 400 → 界面显示中文原因 | 已验证 |
+| 真实导出 | 45 块 / 12/13 资源，队列四格依次点亮，`done` | 已验证 |
+| 回执 | 判定「**存在缺口**」（因 190MB 被跳过），字段与 manifest 逐项对齐 | 已验证 |
+| 预览 iframe | 目录高亮脚本执行（`active=1`）、图片按视口懒加载 | 已验证 |
+| console | **0 error**（仅 1 条已知 sandbox 提示 warning） | 已验证 |
+| 响应式 | 320 / 375 / 768 / 1024 / 1440 **全部无横向溢出** | 已验证 |
+| 键盘 | textarea → 2 个 checkbox → 按钮 → 2 个链接，**焦点环均 2px solid** | 已验证 |
+| 设计 token | 计算样式实测 `--paper #f2efe6` / `--signal #d64518` / 蓝图栅格 / Newsreader | 已验证 |
+
+### 13.3 实施中发现并修复的 3 个真实缺陷
+
+| # | 现象 | 根因 | 修复 |
+|---|---|---|---|
+| 1 | 预览 iframe 里目录高亮失效，控制台报 `Blocked script execution … 'allow-scripts' permission is not set` | 上一轮只修了服务端 CSP，**iframe 的 sandbox 属性未给 allow-scripts** | 对照实验后定 `allow-scripts allow-same-origin`（只给 allow-scripts 时图片仅 2/11），理由与安全边界写入代码注释与 CHANGELOG |
+| 2 | 320px 视口横向溢出 230px | grid 隐性单列的列宽被子元素 `min-content` 撑到 530px | 显式 `grid-cols-1` + 子项 `min-w-0` |
+| 3 | 回执标签与数值横向跨度过大 | 回执撑满右栏（约 740px） | 收窄到 `max-w-[620px]`，更像票据 |
+
+### 13.4 已知限制（不修，已披露）
+
+- iframe 焦点环在 Chrome 下 CSS 无法生效（`:focus` / `:focus-visible` 对 iframe 都不触发）→ 键盘用户用「新标签打开」。
+- 内嵌预览图片按视口懒加载，长文档需滚动。
+- 任务串行。
 
 ---
 

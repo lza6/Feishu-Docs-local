@@ -2,6 +2,34 @@
 
 本文件记录对外可见的变化。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-10-24
+
+本地 Web 工作台（GUI）。导出引擎不变，新增一层可视化界面。
+
+### Added
+
+- `ui/`：Vite + React 18 + Tailwind 3.4 + Radix 的本地工作台，三段式布局（投入 / 队列 / 产物）。
+  - 队列用 SSE 实时推进，四格阶段点阵（取块 / 资源 / 渲染 / 落盘），`waiting_login` 时出现「登录好了，继续」按钮（替代 CLI 的回车）。
+  - **导出回执**：字段全部来自 `manifest.json`，直接标出「无缺口 / 存在缺口」，并逐条列出 `⚠` 原因。
+  - 内嵌产物预览 iframe + 新标签打开 + 下载。
+  - `#tokens` 路由是设计系统的自查页（色板 / 字阶 / 状态 / 三处动效）。
+- `ui/src/features/receipt-model.js`：回执与完整性判定的纯函数，可在纯 Node 下测试。
+
+### Changed
+
+- `README` 顶部表述改为两段式：**导出引擎零依赖**，**工作台需构建一次**（构建依赖全在 `devDependencies`，运行时仍零依赖）。
+- CI 仍不跑 `npm install`：`node --test` 只测引擎，`ui/` 不参与 CI。
+
+### 设计取舍（有实测数据支撑）
+
+- **iframe sandbox 用 `allow-scripts allow-same-origin`**：只给 `allow-scripts` 时，opaque origin 下 lazy 图片只加载 2/11，预览等于残废；加上后 8/11（其余在视口外，属正常懒加载）。理由是 iframe 不是本项目的安全边界——产物来自用户自己的文档、内容已 `esc()` 转义，真正的边界在服务端（URL 白名单 / Host-Origin 校验 / realpath / CSP / body 上限）。若将来支持"导出别人的文档给第三方预览"，必须重新评估。
+- **动效只保留三处**（入槽 / 阶段点阵 / 产物揭示），`prefers-reduced-motion` 下全部归零。
+
+### Known limitations
+
+- 内嵌预览的图片按视口懒加载；iframe 焦点环在 Chrome 下无法用 CSS 显示。
+- 工作台任务串行执行。
+
 ## [1.1.1] - 2026-10-24
 
 收敛 `下一步改进指南` 里剩余的 P2 组，其中一条实为数据丢失。

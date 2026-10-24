@@ -1,0 +1,162 @@
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-display);
+    -webkit-font-smoothing: antialiased;
+    /* 蓝图栅格：只在页头与右栏可见，正文区留白靠组件自己盖住 */
+    background-image:
+      linear-gradient(color-mix(in srgb, var(--rule) calc(var(--grid-alpha) * 100%), transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--rule) calc(var(--grid-alpha) * 100%), transparent) 1px, transparent 1px);
+    background-size: var(--grid-size) var(--grid-size);
+    background-position: -1px -1px;
+  }
+
+  /* 所有数据、路径、标签、编号一律等宽 */
+  .mono {
+    font-family: var(--font-mono);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--signal) 22%, transparent);
+  }
+
+  /* 焦点必须可见：不设 outline:none */
+  :focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+  }
+
+  /* iframe 可被 Tab 聚焦（用于内部滚动）。Chrome 对 iframe 不触发 :focus-visible，
+     所以这里必须用 :focus，否则键盘用户看不到焦点落在预览区。 */
+  iframe:focus {
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* 1px 裸规则线：本设计的"容器"靠线而不是靠卡片 */
+  .hr {
+    border: 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .hairline {
+    border: 1px solid var(--rule);
+  }
+
+  /* 段落编号 01 / 02 / 03 */
+  .secno {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.18em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+  }
+
+  .btn {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    padding: 9px 16px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--rule);
+  }
+
+  .btn-signal {
+    background: var(--signal);
+    border-color: var(--signal);
+    color: #fff;
+  }
+
+  .field {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.7;
+    padding: 10px 12px;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    resize: vertical;
+  }
+
+  .field::placeholder {
+    color: color-mix(in srgb, var(--ink-soft) 70%, transparent);
+  }
+}
+
+/* ---------- 动效：全站只允许这三处 ---------- */
+
+@keyframes slot-in {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes dot-on {
+  from { opacity: 0.2; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@layer utilities {
+  /* ① 提交入槽 */
+  .anim-slot {
+    animation: slot-in var(--dur-in) var(--ease-out) both;
+  }
+  /* ② 阶段点阵点亮 */
+  .anim-dot {
+    animation: dot-on var(--dur-step) var(--ease-out) both;
+  }
+  /* ③ 产物揭示 */
+  .anim-reveal {
+    animation: reveal-up var(--dur-reveal) var(--ease-out) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .anim-slot,
+  .anim-dot,
+  .anim-reveal {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

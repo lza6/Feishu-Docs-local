@@ -1,6 +1,6 @@
 {
   "name": "feishu-doc-exporter",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "飞书文档一键导出为本地离线文档（HTML + Markdown + 本地化图片），零第三方依赖",
   "type": "module",
   "bin": {

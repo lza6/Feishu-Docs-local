@@ -20,3 +20,6 @@ node_modules/
 
 # 另一进程的会话状态文件（Workflow Status），本地留存不提交
 /参考的结果计划指南.md
+
+# 前端构建产物（可再生产，由 server.mjs 托管）
+/ui/dist/
