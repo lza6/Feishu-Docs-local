@@ -1,0 +1,29 @@
+name: selftest
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  selftest:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # 零依赖：不跑 npm install，直接执行
+      - name: 纯逻辑自检（不需要浏览器/网络）
+        run: node selftest.mjs
+
+      - name: CLI 冒烟（--help 必须正常退出）
+        run: node feishu-export.mjs --help

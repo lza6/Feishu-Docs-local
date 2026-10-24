@@ -8,3 +8,18 @@ node_modules/
 
 # 本地私有留存（含内部信息的验证截图等），永不提交
 /.local/
+
+# 内部计划书（含内部租户域名等不宜公开的信息），本地留存不提交
+/计划书/
+/docs/计划书/
+
+# 内部工作台账 / 会话产物（另一个进程会写入），本地留存不提交
+/project_specs.md
+/tasks/
+/workflow_status.md
+/policy.md
+/test_ledger.md
+/db_structure.md
+/evidence/
+/.agent/
+/docs/archive/

@@ -39,3 +39,16 @@ re-read whole files.
 After big code changes, refresh the graph with `graft build` (deterministic,
 no API key, $0).
 <!-- graft:end -->
+
+## 注意：`graft/` 未随仓库提交
+
+上面这段是 graft 的通用说明。本仓库把 `graft/` 加入 `.gitignore`（图谱是可再生的本地产物，体积大且与机器相关），所以**刚 clone 下来时并不存在 `graft/` 目录**。
+
+需要图谱时在本地生成：
+
+```bash
+npm install -g @nanonets/graft
+graft build      # 纯确定性索引，无 API key、无费用
+```
+
+在没跑 `graft build` 的环境里，直接用 `rg` / 读源码即可，不影响任何功能。

@@ -4,6 +4,8 @@
 
 **零第三方依赖**：只用 Node（>=20）内置能力 + 本机已装的 Chrome/Edge，通过 CDP 驱动，不需要 `npm install`。
 
+[![selftest](https://github.com/lza6/Feishu-Docs-local/actions/workflows/selftest.yml/badge.svg)](https://github.com/lza6/Feishu-Docs-local/actions/workflows/selftest.yml)
+
 ---
 
 ## 快速开始
@@ -130,3 +132,9 @@ A：说明你已有一个开调试端口的 Chrome，工具会直接复用；也
 
 **Q：图片是 0 KB / 打不开**
 A：检查是否有代理拦截 `feishu.cn` 的 `/space/api/` 请求；工具依赖浏览器会话直连租户域名。
+
+---
+
+## 许可证
+
+[MIT](LICENSE)。
