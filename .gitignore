@@ -9,17 +9,14 @@ node_modules/
 # 本地私有留存（含内部信息的验证截图等），永不提交
 /.local/
 
-# 内部计划书（含内部租户域名等不宜公开的信息），本地留存不提交
-/计划书/
-/docs/计划书/
-
-# 内部工作台账 / 会话产物（另一个进程会写入），本地留存不提交
-/project_specs.md
-/tasks/
+# 工作台账 / 计划书已按决策公开（计划书/、docs/计划书/、project_specs.md、tasks/）。
+# 仅以下“纯临时执行骨架 + 机器本地产物”仍不提交：
 /workflow_status.md
 /policy.md
 /test_ledger.md
-/db_structure.md
 /evidence/
 /.agent/
 /docs/archive/
+
+# 另一进程的会话状态文件（Workflow Status），本地留存不提交
+/参考的结果计划指南.md
