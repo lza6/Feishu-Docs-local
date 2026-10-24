@@ -2,6 +2,21 @@
 
 本文件记录对外可见的变化。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.1] - 2026-10-24
+
+文档与工程化补充，无功能变更、无破坏性改动。
+
+### Added
+
+- `.github/workflows/selftest.yml`：每次 push / PR 在 Node 20 / 22 / 24 上跑 `node selftest.mjs` 与 `node feishu-export.mjs --help` 冒烟，零 `npm install`。
+- `CHANGELOG.md`（本文件）、`.gitattributes`（文本规范化 + 二进制扩展名声明）。
+- 计划书与台账：`计划书/本地Web工作台-GUI实施计划-v1.0.md`、`docs/计划书/下一步改进指南.md`、`project_specs.md`、`tasks/`。
+
+### Changed
+
+- `README.md`：补 CI 徽章、目录结构、`probe-page.mjs` 调试用法、「许可证」段落；验证记录改为泛指，不披露具体单位。
+- `AGENTS.md`：说明 `graft/` 不随仓库提交，需本地 `graft build` 生成。
+
 ## [1.0.0] - 2026-10-24
 
 首个公开版本。
